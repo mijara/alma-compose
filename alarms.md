@@ -28,25 +28,51 @@ interpreted as no restriction).
 
 ## An alarm example
 
-**TODO**
+```
+Max 5.000000% CPU exceeded: [nginx] {13 Feb 17 18:09:27 UTC} CPU: 17.358405%,
+    MEM: 0.097502% [2043904 B] Tx/Rx: 9386317/2047081
+```
+
+This example shows every bit of information at the time the detection was made,
+in this strict format:
+
+```
+Max [MAX_CPU] CPU exceeded: [CONTAINER_NAME] [UTC Timestamp] CPU: [CURRENT_CPU],
+    MEM: [CURRENT_MEM] [MEM_IN_BYTES] Tx/Rx: [TX_BYTES]/[RX_BYTES]
+```
+
+This is useful to quickly check how bad the situation is.
 
 ## Excluding duplicates
 
 To ignore duplicates of the same alarm the system uses two mechanisms:
 
 - Ignore every peak that follows an initial alarm raise, until it is fixed.
-- After a peak, we will `rest` for a number of cycles, ignoring every value.
+- After a peak, we will rest for a number of cycles, ignoring every value.
   This is useful in cases where a container has lots of peaks constantly
-  increasing and decreasing. Although it is not a perfect solution, it is good
-  enough for most cases.
+  increasing and decreasing.
 
 ## Where do alarms go?
 
-Alarms are thrown to two places, first it is logged in Statspout as a backup,
-and then it is sent to a alarm system in order to broadcast an email or
-something else.
+The AlarmDetector repository supports multiple notifiers, at the moment there're
+two: standard output and RabbitMQ, the former is used as a backup and the latter
+is used to send logs to further analysis (and maybe Jenkins).
 
-**TODO RabbitMQ?**
+Options for these two are:
+
+```
+--alarm.rabbitmq
+	Enable or disable the RabbitMQ notifier. (default false)
+--alarm.rabbitmq.queue string
+	Queue for alarms raised. (default "alarms")
+--alarm.rabbitmq.uri string
+	Broker URI. See https://www.rabbitmq.com/uri-spec.html (default
+        "amqp://localhost:5672/")
+--alarm.stdout
+	Enable or disable the Stdout notifier. (default true)
+```
+
+See the Statspout `How to use` section for further information.
 
 ## Can we set the maximums after starting the container?
 

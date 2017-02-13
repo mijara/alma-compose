@@ -11,24 +11,21 @@ Full documentation can be found in the repository:
 ALMA requires that the system displays historical logs and stats, since this is
 not currently supported by default, a fork was made:
 
-    https://github.com/mijara/portainer/tree/feat-monitor
+    https://github.com/mijara/portainer/tree/master
 
 Which implements graphic displays for said stats and logs, connecting to
-ElasticSearch for logs and InfluxDB for stats. (See
-https://github.com/mijara/portainer/blob/feat-monitor/api/http/monitor_handler.go)
-
-A Pull Request was made to generate discussion in order to develop a more
-pluggable Portainer, but seems like there's not enough interest in this.
+ElasticSearch for logs and InfluxDB for stats. See
+https://github.com/mijara/alma-docs/tree/master/src for source code.
 
 The fork has to be maintained manually to update to different Portainer version,
 to make this easier, the actual implementation was coded in different files
 and, hopefully, each one will work with no modifications, but in order to
 activate those modules, we need to modify some files to include the features.
 
-## Updating portainer module
+## Updating the module
 
-This will guide will cover from creating a fork until you can release a Docker
-Image for the forked Portainer.
+This guide will cover from creating a fork until the creation of a Docker Image
+for the forked Portainer.
 
 ### Environment
 
@@ -42,8 +39,9 @@ from:
 
     https://github.com/portainer/portainer
 
-To setup the development environment, we need these tools (in barebones CentOS 7
-installation):
+To setup the development environment, we need these tools (in a barebones CentOS
+7 installation):
+
 ```
 yum install -y git epel-release # used to install NPM.
 yum install -y npm docker
