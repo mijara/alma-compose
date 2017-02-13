@@ -25,7 +25,7 @@ to make this easier, the actual implementation was coded in different files
 and, hopefully, each one will work with no modifications, but in order to
 activate those modules, we need to modify some files to include the features.
 
-## Maintaining the Fork
+## Updating portainer module
 
 This will guide will cover from creating a fork until you can release a Docker
 Image for the forked Portainer.
@@ -150,7 +150,7 @@ Download the module files from:
 
     git clone https://github.com/mijara/alma-portainer-module.git apm
 
-Copy files to proper folders:
+Copy files to proper folders (you could make symlinks too if you which):
 
 ```
 cp apm/monitor_handler.go api/http/
@@ -418,9 +418,31 @@ the relevant section of this guide and check errors).
 result of this guide at the moment I wrote it. It may help you.*
 
 For this check we do need the architecture working, you can use the  docker
-compose I used to run the system locally, 
+compose I used to run the system locally. Make sure the endpoints host are
+`0.0.0.0` in ElasticSearch and InfluxDB in your `api/http/server.go` file, and
+you may need to rebuild the binary.
 
-Go to the `dist` directory and execute:
+In https://github.com/mijara/alma-docs, open the `compose` directory and
+execute:
+
+```
+docker-compose up -d
+```
+
+After it finished, execute `docker ps` to check that everything is up and
+running (logspout, logstash, statspout, elasticsearch, influxdb).
+
+Quick check InfluxDB and ElasticSearch with:
+
+```
+# InfluxDB
+http://localhost:8086/query?db=statspout&q=select%20*%20from%20cpu_usage%20where%20container=%27influxdb%27
+
+# ElasticSearch
+http://localhost:9200/offline-*/_search?q=*
+```
+
+Now go to the `dist` directory and execute:
 
 ```
 ./portainer
@@ -435,9 +457,39 @@ It should say something like:
 Go to http://localhost:9000 and follow the instructions to generate a password
 for the admin user.
 
-In the sidebar there should be a new `Monitor` section, click it.
+In the sidebar there should be a new `Monitor` section, click it, then click
+one of the containers and check logs and stats, and play with it a little to
+ensure every bit of functionality works.
+
+*Note: some containers will not work sicen they're created solely for the
+building process, and were stoped BEFORE the system actually acknowledged their
+existence.*
+
+If everything is working fine, stop the docker containers with
+
+```
+docker-compose down
+```
+
+and `Ctrl-C` Portainer.
+
+### General notes of the source code modification
+
+This is strictly a workaround, because Portainer does not support plugins, you
+should check if the latest version supports them and adapt the new plugin for
+that architecture.
+
+Merging the files may be not as straight forward as this guide tells you,
+I recommend you that you learn Go/AngularJS in order to achieve the same as
+these steps tell you to, in resume:
+
+- Add a new endpoint for the module.
+- Add AngularJS components.
+- Add Sidebar link to the monitor list.
 
 ### Generating the new Docker Image
+
+    // TODO
 
 ## Change ElasticSearch and InfluxDB URLs
 
