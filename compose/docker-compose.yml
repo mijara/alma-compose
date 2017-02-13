@@ -1,0 +1,61 @@
+version: "2"
+services:
+    elasticsearch:
+        container_name: "elasticsearch"
+        image: elasticsearch
+        ports:
+            - "9200:9200"
+            - "9300:9300"
+        network_mode: "bridge"
+        volumes:
+            - ./conf/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
+
+    logstash:
+        container_name: "logstash"
+        image: logstash
+        volumes:
+            - ./conf/logstash.conf:/opt/logstash/logstash.conf
+        command: "-f /opt/logstash/logstash.conf"
+        links:
+            - elasticsearch
+        network_mode: "bridge"
+        ports:
+            - "5000:5000"
+
+    logspout:
+        container_name: "logspout"
+        image: logspout-logstash
+        restart: on-failure
+        ports:
+            - "8000:80"
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+        command: logstash://logstash:5000
+        network_mode: "bridge"
+        links:
+            - logstash
+
+    influxdb:
+        container_name: "influxdb"
+        image: influxdb
+        ports:
+            - "8083:8083"
+            - "8086:8086"
+        network_mode: "bridge"
+
+    alma-setup:
+        container_name: "alma-setup"
+        image: alma-setup
+        network_mode: "bridge"
+        links:
+            - influxdb
+
+    statspout:
+        container_name: "statspout"
+        image: mijara/statspout
+        network_mode: "bridge"
+        command: "--repository=influxdb --influxdb.address=http://influxdb:8086 --influxdb.database=statspout --interval=10"
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+        links:
+            - influxdb
