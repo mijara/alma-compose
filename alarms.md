@@ -61,15 +61,17 @@ is used to send logs to further analysis (and maybe Jenkins).
 Options for these two are:
 
 ```
+--alarm.cycles int
+    Cycles of cooldown after a the detection stopped. (default 10)
 --alarm.rabbitmq
-	Enable or disable the RabbitMQ notifier. (default false)
+    Enable or disable the RabbitMQ notifier. (default false)
 --alarm.rabbitmq.queue string
-	Queue for alarms raised. (default "alarms")
+    Queue for alarms raised. (default "alarms")
 --alarm.rabbitmq.uri string
-	Broker URI. See https://www.rabbitmq.com/uri-spec.html (default
+    Broker URI. See https://www.rabbitmq.com/uri-spec.html (default
         "amqp://localhost:5672/")
 --alarm.stdout
-	Enable or disable the Stdout notifier. (default true)
+    Enable or disable the Stdout notifier. (default true)
 ```
 
 See the Statspout `How to use` section for further information.
