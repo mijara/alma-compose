@@ -152,7 +152,7 @@ Download the module files from
 Copy files to proper folders (you could make symlinks too if you which):
 
 ```
-portainer/
+fork/
 |-- api/http/
 |   `-- monitor_handler.go
 |
