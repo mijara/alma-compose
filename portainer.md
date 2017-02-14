@@ -95,7 +95,14 @@ After a while, it should say `Done, without errors.`, and generate the binary at
     effect and run the grunt command again.
 
 
-    If that failed:
+    If that fails:
+
+    The build process may fail with a permission denied error, it is often times
+    caused by SELinux, you can try to fix it, but probably is better for
+    development to just disable it with `setenforce 0`.
+
+
+    If that fails:
 
     The build process may fail, with an error like:
 
@@ -111,27 +118,20 @@ After a while, it should say `Done, without errors.`, and generate the binary at
 
     Then execute the grunt command again.
 
-
-    If that failed:
-
-    The build process may fail with a permission denied error, it is often times
-    caused by SELinux, you can try to fix it, but probably is better for
-    development to just disable it with `setenforce 0`.
-
-Now run
+To generate the compressed JS and CSS code, run
 
 ```
 grunt build
 ```
 
-To generate the compressed JS and CSS code. Finally, execute:
+Finally, execute:
 
 ```
 cd dist
 ./portainer
 ```
 
-    If that failed:
+    If that fails:
 
     The command may fail with an error like:
 
@@ -188,6 +188,15 @@ And install them with
 ```
 npm install
 ```
+
+Check the installation with:
+
+```
+find bower_components/seiyria-bootstrap-slider/dist/bootstrap-slider.js
+find bower_components/eonasdan-bootstrap-datetimepicker/build/js/bootstrap-datetimepicker.min.js
+```
+
+Check the output for errors, if none, we are OK.
 
 ### Activate the modules in Portainer
 
