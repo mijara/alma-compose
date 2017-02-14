@@ -39,11 +39,11 @@ from:
 
     https://github.com/portainer/portainer
 
-To setup the development environment, we need these tools (in a barebones CentOS
-7 installation):
+To setup the development environment, we need these tools (this guide was tested
+on a clean CentOS 7 installation):
 
 ```
-yum install -y git epel-release # used to install NPM.
+yum install -y git epel-release
 yum install -y npm docker
 
 npm install -g grunt-cli
