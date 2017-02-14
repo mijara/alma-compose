@@ -84,7 +84,7 @@ To run it:
 
 If everything is working properly, restart the Logstash daemon.
 
-## Running the service
+## Running the service for quick tests
 
 First make sure you have an image of logspout-logstash, if not, refer to
 `Build Logspout-Logstash Image` section.
