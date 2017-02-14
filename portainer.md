@@ -118,6 +118,17 @@ After a while, it should say `Done, without errors.`, and generate the binary at
 
     Then execute the grunt command again.
 
+
+    If that fails:
+
+    The process may fail telling us that it can't resolve github.com, this is
+    due to Docker not being able to resolve it, a quick fix is to change the
+    DNS Docker uses, open /etc/sysconfig/docker and add:
+
+    DOCKER_OPTS="--dns 8.8.8.8 --dns 8.8.4.4"
+
+    at the end, then run the grunt command again.
+
 To generate the compressed JS and CSS code, run
 
 ```
@@ -201,27 +212,23 @@ Check the output for errors, if none, we are OK.
 ### Activate the modules in Portainer
 
 This is the most `hack-ish` part, in which we must modify the source code of
-Portainer to link to the new module.
+Portainer to link the new module.
 
 #### JS and CSS
 
-In the `gruntfile.json` file, include:
+In the `gruntfile.json` file, in the `jsVendor` list, include:
 
 ```
 bower_components/seiyria-bootstrap-slider/dist/bootstrap-slider.js
 bower_components/eonasdan-bootstrap-datetimepicker/build/js/bootstrap-datetimepicker.min.js
 ```
 
-To the `jsVendor` list.
-
-And
+And in the `cssVendor` list include:
 
 ```
 bower_components/seiyria-bootstrap-slider/dist/css/bootstrap-slider.css
 bower_components/eonasdan-bootstrap-datetimepicker/build/css/bootstrap-datetimepicker.css
 ```
-
-To the `cssVendor` list.
 
 Execute:
 
@@ -229,7 +236,7 @@ Execute:
 grunt build
 ```
 
-And check everything is working properly (no errors thrown).
+And check everything is working properly (no errors thrown in the console).
 
 #### API Endpoint
 
@@ -309,7 +316,6 @@ Add:
 ```
 var monitorHandler = NewMonitorHandler(middleWareService, MonitorOpts{
 	ES: EsOpts{
-		// FIXME: connect elasticsearch as a link. (How could I do this with grunt run-dev?)
 		endpoint: "http://<ELASTICSEARCH_HOST>:9200/offline-*/_search",
 	},
 	Influx: InfluxOpts{
@@ -348,8 +354,9 @@ a container to build the binary.*
 This should compile fine with a message `Done, without errors.`.
 
 Now check that it actually worked (you don't really need the architecture
-working, just checking if a relevant error is returned), open
-http://localhost:9000/api/monitor/logs in a browser, the error returned must be:
+working, just checking if a relevant error is returned), run the server again
+and open http://localhost:9000/api/monitor/logs in a browser, the error returned
+must be:
 
 ```
 {"err":"got empty value for key: name"}
