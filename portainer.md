@@ -109,7 +109,14 @@ After a while, it should say `Done, without errors.`, and generate the binary at
     which sha1sum
     ln -s <SHA1SUM_PATH> /usr/local/bin/shasum
 
-    Then execute the grunt command again (`!grunt`).
+    Then execute the grunt command again.
+
+
+    If that failed:
+
+    The build process may fail with a permission denied error, it is often times
+    caused by SELinux, you can try to fix it, but probably is better for
+    development to just disable it with `setenforce 0`.
 
 Now run
 
