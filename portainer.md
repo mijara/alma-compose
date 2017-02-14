@@ -144,18 +144,26 @@ properly.
 
 ### Add the new modules
 
-Download the module files from:
+Download the module files from
 
-    git clone https://github.com/mijara/alma-portainer-module.git apm
+    https://github.com/mijara/alma-docs/tree/master/src/api
+    https://github.com/mijara/alma-docs/tree/master/src/app
 
 Copy files to proper folders (you could make symlinks too if you which):
 
 ```
-cp apm/monitor_handler.go api/http/
-mkdir app/components/monitor
-cp apm/monitorController.js apm/monitor.html app/components/monitor/
-mkdir app/components/monitorList
-cp apm/monitorList.html apm/monitorListController.js app/components/monitorList/
+portainer/
+|-- api/http/
+|   `-- monitor_handler.go
+|
+`-- app/components/
+    |-- monitor/
+    |   |-- monitor.html
+    |   `-- monitorController.js
+    |
+    `-- monitorList/
+        |-- monitorList.html
+        `-- monitorListController.js
 ```
 
 ### Install module dependencies
