@@ -66,8 +66,9 @@ Install modules:
 npm install
 ```
 
-At this point, we need to build the Golang binary, to do this make sure docker
-is running and execute one of the following commands, depending on your OS:
+At this point, we need to build the Golang Portainer binary, to do this make
+sure docker is running and execute one of the following commands, depending on
+your OS:
 
 ```
 grunt shell:buildBinary       # Linux
@@ -77,6 +78,22 @@ grunt shell:buildDarwinBinary # MacOS
 This will download some images from Docker Hub, and then Go dependencies.
 After a while, it should say `Done, without errors.`, and generate the binary at
 `dist/portainer`.
+
+    If that fails:
+
+    It may fail saying that we couldn't find the docker daemon, this happens
+    when the user is not privileged enough to do so. We will create a new group
+    called Docker and add the user to that so we can actually run docker
+    commands:
+
+    With the root user:
+
+    groupadd docker
+    gpasswd -a <USER> docker
+
+    Restart the Docker daemon, login again with the user for changes to take
+    effect and run the grunt command again.
+
 
     If that failed:
 
@@ -88,7 +105,8 @@ After a while, it should say `Done, without errors.`, and generate the binary at
 
     We do have shasum installed, but with other name, so create a symlink:
 
-    which sha1sum # to find the current binary tool location.
+    # find the location of sha1sum.
+    which sha1sum
     ln -s <SHA1SUM_PATH> /usr/local/bin/shasum
 
     Then execute the grunt command again (`!grunt`).
@@ -99,24 +117,7 @@ Now run
 grunt build
 ```
 
-To generate the compressed JS and CSS code.
-
-    If that failed:
-
-    It may fail with a `recess` error, this happens when the user is not able to
-    contact the Docker daemon, often times because the user does not have the
-    privileged to do so. We will create a new group called Docker and add the
-    user to that so we can actually run docker commands:
-
-    With the root user:
-
-    groupadd docker
-    gpasswd -a <USER> docker
-
-    Restart the Docker daemon, login again with the new user for changes to take
-    effect and run the grunt command again.
-
-Finally, run
+To generate the compressed JS and CSS code. Finally, execute:
 
 ```
 cd dist
