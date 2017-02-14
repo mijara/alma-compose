@@ -447,32 +447,15 @@ the relevant section of this guide and check errors).
 *Note: You can go to https://github.com/mijara/portainer/tree/master to check the
 result of this guide at the moment I wrote it. It may help you.*
 
-For this check we do need the architecture working, you can use the  docker
+For this check we do need the architecture working, you can use the docker
 compose I used to run the system locally. Make sure the endpoints host are
 `0.0.0.0` in ElasticSearch and InfluxDB in your `api/http/server.go` file, and
 you may need to rebuild the binary.
 
-In https://github.com/mijara/alma-docs, open the `compose` directory and
-execute:
+Follow the steps in the Deployment guide until before it starts the Portainer
+container (Development deployment section).
 
-```
-docker-compose up -d
-```
-
-After it finished, execute `docker ps` to check that everything is up and
-running (logspout, logstash, statspout, elasticsearch, influxdb).
-
-Quick check InfluxDB and ElasticSearch with:
-
-```
-# InfluxDB
-http://localhost:8086/query?db=statspout&q=select%20*%20from%20cpu_usage%20where%20container=%27influxdb%27
-
-# ElasticSearch
-http://localhost:9200/offline-*/_search?q=*
-```
-
-Now go to the `dist` directory and execute:
+After every other service is started, go to the `dist` directory and execute:
 
 ```
 ./portainer
@@ -484,14 +467,11 @@ It should say something like:
 [...] Starting Portainer on :9000
 ```
 
-Go to http://localhost:9000 and follow the instructions to generate a password
-for the admin user.
-
 In the sidebar there should be a new `Monitor` section, click it, then click
 one of the containers and check logs and stats, and play with it a little to
 ensure every bit of functionality works.
 
-*Note: some containers will not work sicen they're created solely for the
+*Note: some containers will not work since they're created solely for the
 building process, and were stoped BEFORE the system actually acknowledged their
 existence.*
 
@@ -513,16 +493,10 @@ Merging the files may be not as straight forward as this guide tells you,
 I recommend you that you learn Go/AngularJS in order to achieve the same as
 these steps tell you to, in resume:
 
-- Add a new endpoint for the module.
+- Add a new endpoint into the API.
 - Add AngularJS components.
 - Add Sidebar link to the monitor list.
 
 ### Generating the new Docker Image
 
     // TODO
-
-## Change ElasticSearch and InfluxDB URLs
-
-Since there's not much room for configuration, these steps are *HARDCODED* in
-Portainer. This is not ideal, but there's not a lot of sense in actually making
-it pretty.
