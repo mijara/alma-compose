@@ -32,7 +32,9 @@ dir).
 These steps will make use of `docker-compose` utility, in this repository you
 will find the `compose` directory with all files you need for this.
 
-CD into the `compose` directory and execute:
+CD into the `compose` directory, copy the example file
+`docker-compose.yml.example` to `docker-compose.yml` and fill the missing
+information marked by `<`, `>`, then save and execute:
 
 ```
 docker-compose up -d
