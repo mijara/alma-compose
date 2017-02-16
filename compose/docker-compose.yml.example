@@ -24,7 +24,7 @@ services:
 
     logspout:
         container_name: "logspout"
-        image: logspout-logstash
+        image: mijara/alma-logspout-logstash
         restart: on-failure
         ports:
             - "8000:80"
@@ -52,10 +52,11 @@ services:
 
     statspout:
         container_name: "statspout"
-        image: mijara/statspout
+        image: mijara/alma-statspout-alarms
         network_mode: "bridge"
-        command: "--repository=influxdb --influxdb.address=http://influxdb:8086 --influxdb.database=statspout --interval=10"
+        command: "--repository=alarm --influxdb.address=http://influxdb:8086 --influxdb.database=statspout --interval=10 --amqp://<USER>:<PASS>@<HOST>:5672/"
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
         links:
             - influxdb
+

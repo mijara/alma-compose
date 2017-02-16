@@ -76,6 +76,23 @@ Options for these two are:
 
 See the Statspout `How to use` section for further information.
 
+### RabbitMQ Alarms format
+
+Here we use a format for alarms for RabbitMQ that makes it easy to use Jenkins
+to send notifications for them, example of the JSON format:
+
+```json
+{
+    "timestamp": "UTC TIMESTAMP",
+    "name": "OFFLINE/APP/RESOURCE",
+    "priority": "WARNING",
+    "detection_time": "UTC TIMESTAMP",
+    "body": {
+        "message": "a test alarm message."
+    }
+}
+```
+
 ## Can we set the maximums after starting the container?
 
 No, Statspout is not capable of detecting such changes at the moment.

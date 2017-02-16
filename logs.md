@@ -41,12 +41,16 @@ good idea to upload it to a registry).
 
     On ALMA Ethernet Internet the build process failed, but on WiFi it didn't,
     so the firewall could be the issue.
-
+    
     If that's not the issue, then check Logspout repository issues, at the
     moment the build is broken since the project uses Go 1.7 dependencies but
     compiles with 1.6 ...
-
+    
     https://github.com/gliderlabs/logspout/issues/262
+    
+    We can use this image in the meantime:
+    
+    https://hub.docker.com/r/mijara/alma-logspout-logstash/
 
 ## Logstash
 
