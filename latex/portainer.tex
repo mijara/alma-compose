@@ -1,0 +1,516 @@
+\chapter{Portainer}
+
+Portainer is the system used in ALMA to manage the Docker Swarm, full documentation can be found in the repository on Github \citep{portainer-github}. It is the system on which the work on this internship is going to be actually displayed. 
+
+\section{Monitoring Mod}
+
+ALMA requires that the system displays historical logs and stats, since this is not currently supported by default, a fork was made on \url{https://github.com/mijara/portainer/tree/master} which implements graphic displays for said stats and logs, connecting to ElasticSearch for logs and InfluxDB for stats. See https://github.com/mijara/alma-docs/tree/master/src for source code.
+
+The fork has to be maintained manually to update to different Portainer version, to make this easier, the actual implementation was coded in separate modules and, hopefully, each one will work with no modifications, but in order to activate those modules, we need to modify some files to include the features.
+
+\section{Updating the module}
+
+This guide will cover from creating a fork until the creation of a Docker Image for the forked Portainer.
+
+\subsection{Environment}
+
+If you already have a fork and you have to update it, these steps can be skipped. This guide will not tell you how to merge, but it will help you to know where each piece of code go. Note that we will always use the master branch, in order to use a stable version of Portainer (1.11.3 at the moment).
+
+First step is to create a fork, head to Github a create one under your account from \url{https://github.com/portainer/portainer}
+
+To setup the development environment, we need these tools (this guide was tested on a clean CentOS 7 installation):
+
+\begin{lstlisting}[language=bash]
+yum install -y git epel-release
+yum install -y npm docker
+
+npm install -g grunt-cli
+\end{lstlisting}
+
+\begin{center}
+\textit{NOTE: npm does not work under the root user, create a non-privileged user to continue.}
+\end{center}
+
+Clone the fork and checkout master:
+
+\begin{lstlisting}[language=bash]
+git clone git@github.com:<GITHUB_ACCOUNT>/portainer.git fork
+cd fork
+git checkout master
+\end{lstlisting}
+
+Install modules:
+
+\begin{lstlisting}
+npm install
+\end{lstlisting}
+
+At this point, we need to build the Golang Portainer binary, to do this make sure docker is running and execute one of the following commands, depending on your OS:
+
+\begin{lstlisting}[language=bash]
+grunt shell:buildBinary       # Linux
+grunt shell:buildDarwinBinary # MacOS
+\end{lstlisting}
+
+
+This will download some images from Docker Hub, and then Go dependencies. After a while, it should say \texttt{Done, without errors.}, and generate the binary at \texttt{dist/portainer}.
+
+\begin{story}[In case of failure]
+It may fail saying that we couldn't find the docker daemon, this happens when the user is not privileged enough to do so. We will create a new group called Docker and add the user to that so we can actually run docker commands with root user:
+
+\begin{lstlisting}
+groupadd docker
+gpasswd -a <USER> docker
+\end{lstlisting}
+
+Restart the Docker daemon, login again with the user for changes to take effect and run the grunt command again.
+\end{story}
+
+\begin{story}[In case of failure]
+The build process may fail with a permission denied error, it is often times caused by \textbf{SELinux}, you can try to fix it, but probably is better for development to just disable it with \texttt{setenforce 0}.
+\end{story}
+
+
+
+\begin{story}[In case of failure]
+The build process may fail, with an error like:
+
+\begin{lstlisting}
+...
+/bin/sh: shasum: command not found
+Use --force to continue
+\end{lstlisting}
+
+We do have shasum installed, but with other name, so create a symlink:
+
+\begin{lstlisting}
+# find the location of sha1sum.
+which sha1sum
+ln -s <SHA1SUM_PATH> /usr/local/bin/shasum
+\end{lstlisting}
+
+Then execute the \texttt{grunt} command again.
+\end{story}
+
+
+\begin{story}[In case of failure]
+The process may fail telling us that it can't find github.com, this is due to Docker not being able to resolve it, a quick fix is to change the DNS Docker uses, open /etc/sysconfig/docker and add:
+
+\begin{lstlisting}
+DOCKER_OPTS="--dns 8.8.8.8 --dns 8.8.4.4"
+\end{lstlisting}
+
+at the end, then run the grunt command again.
+\end{story}
+
+To generate the compressed JS and CSS code, run
+
+\begin{lstlisting}
+grunt build
+\end{lstlisting}
+
+Finally, execute:
+
+\begin{lstlisting}
+cd dist
+./portainer
+\end{lstlisting}
+
+
+\begin{story}[In case of failure]
+The command may fail with an error like:
+
+\begin{lstlisting}
+[...] mkdir /data/tls: no such file or directory
+\end{lstlisting}
+
+This happens when the \texttt{/data} folder is not created and the user is not privileged enough to create it. With a privileged user:
+
+\begin{lstlisting}
+mkdir /data
+chown <USER>:docker /data -R
+\end{lstlisting}
+
+Then execute the portainer binary again.
+\end{story}
+
+In a browser, head to \url{http://localhost:9000} and check that everything is working properly.
+
+\subsection{Add the new modules}
+
+Download the module files from
+
+\begin{center}
+\url{https://github.com/mijara/alma-docs/tree/master/src/api}
+\url{https://github.com/mijara/alma-docs/tree/master/src/app}
+\end{center}
+
+Copy files to proper folders (you could make symlinks too if you which):
+
+\begin{lstlisting}
+fork/
+|-- api/http/
+|   `-- monitor_handler.go
+|
+`-- app/components/
+    |-- monitor/
+    |   |-- monitor.html
+    |   `-- monitorController.js
+    |
+    `-- monitorList/
+        |-- monitorList.html
+        `-- monitorListController.js
+\end{lstlisting}
+
+\subsection{Install module dependencies}
+
+In the \texttt{bower.json} file, include these two dependencies:
+
+\begin{lstlisting}
+"seiyria-bootstrap-slider": "9.7.0",
+"eonasdan-bootstrap-datetimepicker": "4.17.45"
+\end{lstlisting}
+
+And install them with:
+
+\begin{lstlisting}
+npm install
+\end{lstlisting}
+
+Check the installation with:
+
+\begin{lstlisting}[language=bash]
+find bower_components/seiyria-bootstrap-slider/dist/bootstrap-slider.js
+find bower_components/eonasdan-bootstrap-datetimepicker/build/js/bootstrap-datetimepicker.min.js
+\end{lstlisting}
+
+Check the output for errors, if none, we are OK.
+
+\subsection{Activate the modules in Portainer}
+
+This is the most \texttt{hack-ish} part, in which we must modify the source code of Portainer to link the new module.
+
+\subsubsection{JS and CSS}
+
+In the \texttt{gruntfile.json} file, in the \texttt{jsVendor} list, include:
+
+\begin{lstlisting}
+bower_components/seiyria-bootstrap-slider/dist/bootstrap-slider.js
+bower_components/eonasdan-bootstrap-datetimepicker/build/js/bootstrap-datetimepicker.min.js
+\end{lstlisting}
+
+And in the \texttt{cssVendor} list include:
+
+\begin{lstlisting}
+bower_components/seiyria-bootstrap-slider/dist/css/bootstrap-slider.css
+bower_components/eonasdan-bootstrap-datetimepicker/build/css/bootstrap-datetimepicker.css
+\end{lstlisting}
+
+Execute:
+
+\begin{lstlisting}[language=bash]
+grunt build
+\end{lstlisting}
+
+And check everything is working properly (no errors thrown in the console).
+
+\subsubsection{API Endpoint}
+
+This section will add new API endpoints for our modules, we must add a handler so that the server can call the Golang methods added earlier.
+
+Open \texttt{api/http/handler.go} with a text editor. There you will find something like:
+
+\begin{lstlisting}[language=Golang]
+type Handler struct {
+    AuthHandler      *AuthHandler
+    UserHandler      *UserHandler
+    EndpointHandler  *EndpointHandler
+    SettingsHandler  *SettingsHandler
+    TemplatesHandler *TemplatesHandler
+    DockerHandler    *DockerHandler
+    WebSocketHandler *WebSocketHandler
+    UploadHandler    *UploadHandler
+    FileHandler      *FileHandler
+}
+\end{lstlisting}
+
+This contains instances for all endpoint handlers. Add a new member:
+
+\begin{lstlisting}[language=Golang]
+MonitorHandler   *MonitorHandler
+\end{lstlisting}
+
+Then, find this piece of code:
+
+\begin{lstlisting}[language=Golang]
+func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+    if strings.HasPrefix(r.URL.Path, "/api/auth") {
+        http.StripPrefix("/api", h.AuthHandler).ServeHTTP(w, r)
+    } else if strings.HasPrefix(r.URL.Path, "/api/users") {
+        http.StripPrefix("/api", h.UserHandler).ServeHTTP(w, r)
+    } else if strings.HasPrefix(r.URL.Path, "/api/endpoints") {
+        http.StripPrefix("/api", h.EndpointHandler).ServeHTTP(w, r)
+    } else if strings.HasPrefix(r.URL.Path, "/api/settings") {
+        http.StripPrefix("/api", h.SettingsHandler).ServeHTTP(w, r)
+    } else if strings.HasPrefix(r.URL.Path, "/api/templates") {
+        http.StripPrefix("/api", h.TemplatesHandler).ServeHTTP(w, r)
+    } else if strings.HasPrefix(r.URL.Path, "/api/upload") {
+        http.StripPrefix("/api", h.UploadHandler).ServeHTTP(w, r)
+    } else if strings.HasPrefix(r.URL.Path, "/api/websocket") {
+        http.StripPrefix("/api", h.WebSocketHandler).ServeHTTP(w, r)
+    } else if strings.HasPrefix(r.URL.Path, "/api/docker") {
+        http.StripPrefix("/api/docker", h.DockerHandler).ServeHTTP(w, r)
+    } else if strings.HasPrefix(r.URL.Path, "/api/monitor") {
+        http.StripPrefix("/api/monitor", h.MonitorHandler).ServeHTTP(w, r)
+    } else if strings.HasPrefix(r.URL.Path, "/") {
+        h.FileHandler.ServeHTTP(w, r)
+    }
+}
+\end{lstlisting}
+
+This is the \texttt{dispatcher} for each endpoint, we will add a new one:
+
+\begin{lstlisting}
+...
+} else if strings.HasPrefix(r.URL.Path, "/api/monitor") {
+    http.StripPrefix("/api/monitor", h.MonitorHandler).ServeHTTP(w, r)
+}
+...
+\end{lstlisting}
+
+Use your common sense to find the right place for it between the else if statements.
+
+Now open \texttt{api/http/server.go} with a text editor, and right before this line:
+
+\begin{lstlisting}[language=Golang]
+server.Handler = &Handler{
+...
+\end{lstlisting}
+
+Add:
+
+\begin{lstlisting}[language=Golang]
+var monitorHandler = NewMonitorHandler(middleWareService, MonitorOpts{
+	ES: EsOpts{
+		endpoint: "http://<ELASTICSEARCH_HOST>:9200/offline-*/_search",
+	},
+	Influx: InfluxOpts{
+		endpoint: "http://<INFLUXDB_HOST>:8086/query",
+	},
+})
+\end{lstlisting}
+
+This will create the instance of the monitor module, \textbf{note that here are defined the hosts of each database, update them as needed.}
+
+Now, right after this line:
+
+\begin{lstlisting}[language=Golang]
+UploadHandler:    uploadHandler,
+\end{lstlisting}
+
+Add:
+
+\begin{lstlisting}[language=Golang]
+MonitorHandler:   monitorHandler,
+\end{lstlisting}
+
+And this will finally make the monitor handler available.
+
+Now check it is actually compiling:
+
+\begin{lstlisting}[language=bash]
+grunt shell:buildBinary       # Linux
+grunt shell:buildDarwinBinary # MacOS
+\end{lstlisting}
+
+\begin{center}
+\textit{Note: each time you compile, it will download dependencies since it is using a container to build the binary.}
+\end{center}
+
+This should compile fine with a message \texttt{Done, without errors.}
+
+Now check that it actually worked (you don't really need the architecture working, just checking if a relevant error is returned), run the server again and open \url{http://localhost:9000/api/monitor/logs} in a browser, the error returned must be:
+
+\begin{lstlisting}
+{"err":"got empty value for key: name"}
+\end{lstlisting}
+
+This means that our endpoint is working, but it is not being used correctly, which is fine!
+
+\subsection{APP Frontend}
+
+Now we must add the frontend code to activate the JS and HTML modules. Open \texttt{app/app.js} with a text editor, in the \texttt{angular.module} dependency list, add: \texttt{monitor} and \texttt{monitorList}.
+
+Scroll down a little more and you will find a lot of expressions that begin with \texttt{.state(...}, we must add two more of these:
+
+\begin{lstlisting}
+.state('monitor', {
+    url: "^/monitor/:id",
+    views: {
+        "content": {
+            templateUrl: 'app/components/monitor/monitor.html',
+            controller: 'MonitorController'
+        },
+        "sidebar": {
+            templateUrl: 'app/components/sidebar/sidebar.html',
+            controller: 'SidebarController'
+        }
+    },
+    data: {
+        requiresLogin: true
+    }
+})
+.state('monitorList', {
+    url: "^/monitorList",
+    views: {
+        "content": {
+            templateUrl: 'app/components/monitorList/monitorList.html',
+            controller: 'MonitorListController'
+        },
+        "sidebar": {
+            templateUrl: 'app/components/sidebar/sidebar.html',
+            controller: 'SidebarController'
+        }
+    },
+    data: {
+        requiresLogin: true
+    }
+})
+\end{lstlisting}
+
+This will use our components when the user goes to \texttt{monitor/} and \texttt{monitorList/}.
+
+There's one last thing to modify, open \texttt{app/components/sidebar/sidebar.html} and add right after:
+
+\begin{lstlisting}[language=HTML]
+<li class="sidebar-list" ng-if="applicationState.endpoint.mode.provider === 'DOCKER_STANDALONE'">
+  <a ui-sref="docker" ui-sref-active="active">Docker <span class="menu-icon fa fa-th"></span></a>
+</li>
+\end{lstlisting}
+
+Add:
+
+\begin{lstlisting}[language=HTML]
+<li class="sidebar-list">
+  <a ui-sref="monitorList">Monitor <span class="menu-icon fa fa-area-chart"></span></a>
+</li>
+\end{lstlisting}
+
+This will add a new button to the sidebar to direct us to the monitorList
+component.
+
+Now build again:
+
+\begin{lstlisting}
+grunt build
+\end{lstlisting}
+
+It should say \texttt{Done, without errors.} at the end. (Also it should be pretty fast, because it is not generating the binary again. If this is not the case, refer to the relevant section of this guide and check errors).
+
+\subsection{Checking everything}
+
+\begin{center}
+\textit{Note: You can go to \url{https://github.com/mijara/portainer/tree/master} to check the result of this guide at the moment I wrote it. It may help you.}
+\end{center}
+
+For this check we do need the architecture working, you can use the docker  compose I used to run the system locally. Make sure the endpoints host are \texttt{0.0.0.0} in ElasticSearch and InfluxDB in your \texttt{api/http/server.go} file, and you may need to rebuild the binary.
+
+Follow the steps in the Deployment guide until before it starts the Portainer container (Development deployment section).
+
+After every other service is started, go to the \texttt{dist} directory and execute:
+
+\begin{lstlisting}
+./portainer
+\end{lstlisting}
+
+It should say something like:
+
+\begin{lstlisting}
+[...] Starting Portainer on :9000
+\end{lstlisting}
+
+In the webpage's sidebar there should be a new \texttt{Monitor} section, click it, then click one of the containers and check logs and stats, and play with it a little to ensure every bit of functionality works.
+
+\begin{center}
+\texttt{Note: some containers will not work since they're created solely for the building process, and were stopped BEFORE the system actually acknowledged their existence.}
+\end{center}
+
+If everything is working fine, stop the deployment quit Portainer with \texttt{Ctrl-C}.
+
+\subsection{General notes of the source code modification}
+
+This is strictly a workaround, because Portainer does not support plugins, you
+should check if the latest version supports them and adapt the new plugin for
+that architecture.
+
+Merging the files may be not as straight forward as this guide tells you,
+I recommend you that you learn Go/AngularJS in order to achieve the same as
+these steps tell you to, in resume:
+
+\begin{itemize}
+    \item Add a new endpoint into the API.
+    \item Add AngularJS components.
+    \item Add Sidebar link to the monitor list.
+\end{itemize}
+
+\subsection{Generating the new Docker Image}
+
+Execute:
+
+\begin{lstlisting}
+grunt release
+\end{lstlisting}
+
+To generate and compile the release files, after that, your \texttt{dist} directory should look like this (output of \texttt{find .}):
+
+\begin{lstlisting}
+.
+./css
+./css/app.b465c34a.css
+./fonts
+./fonts/fontawesome-webfont.svg
+./fonts/fontawesome-webfont.ttf
+./fonts/fontawesome-webfont.woff
+./fonts/fontawesome-webfont.woff2
+./fonts/glyphicons-halflings-regular.svg
+./fonts/glyphicons-halflings-regular.ttf
+./fonts/glyphicons-halflings-regular.woff
+./fonts/glyphicons-halflings-regular.woff2
+./fonts/montserrat-regular-webfont.svg
+./fonts/montserrat-regular-webfont.ttf
+./fonts/montserrat-regular-webfont.woff
+./ico
+./ico/apple-touch-icon-precomposed.png
+./ico/favicon.ico
+./images
+./images/gritter-light.png
+./images/gritter-long.png
+./images/gritter.png
+./images/ie-spacer.gif
+./images/logo.png
+./images/logo_alt.png
+./index.html
+./js
+./js/app.536fdf2e.js
+./portainer
+\end{lstlisting}
+
+Then go to \texttt{fork/build/linux}, copy the dist folder to here:
+
+\begin{lstlisting}
+cp -r ../../dist .
+\end{lstlisting}
+
+And build the image with:
+
+\begin{lstlisting}
+docker build -t alma/portainer .
+\end{lstlisting}
+
+Check that the image was actually created with:
+
+\begin{lstlisting}
+docker image list
+\end{lstlisting}
+
+And check that there's an image with the name \texttt{alma/portainer} and that was created recently. If everything is OK, you can upload that image to a registry and we're done.

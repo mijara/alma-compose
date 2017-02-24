@@ -1,0 +1,222 @@
+\chapter{Deployment}
+
+This chapter will cover a simple deployment based on Docker for all components. Although this would not be the case for production usage, it will give the user a simple way to test the complete system and then use some parts of this guide to create a real deployment.
+
+The system consists of different subsystems, as seen previously, in resume:
+
+\begin{itemize}
+    \item ElasticSearch: JSON document databse to for logs.
+    \item Logstash: parse and transform logs.
+    \item InfluxDB: Time-series database for stats.
+    \item Logspout: Docker logs collector.
+    \item Statspout: Docker stats collector.
+    \item Portainer: Docker Management UI.
+\end{itemize}
+
+In a production environment, it would make sense to keep, at least, ElasticSearch and InfluxDB as Virtual Machines, and every other component can be easily deployed as a Docker Container.
+
+\section{Guide Depencencies}
+
+To be able to follow this guide, make sure you have the following pieces:
+
+\begin{itemize}
+    \item Custom Logspout-Logstash Docker Image
+    \item Custom Statspout Docker Image (if working with Alarms, which will be detailed in the next chapter).
+    \item ElasticSerach configuration file (\hyperref[sec:appendix-a]{Appendix A})
+    \item Logstash configuration file (\hyperref[sec:appendix-b]{Appendix B})
+    \item Alma Docs repository files (\url{https://github.com/mijara/alma-docs})
+\end{itemize}
+
+\section{Creating the Alma Setup Image}
+
+First we need the alma-setup container that helps us running setup scripts for all containers after they're started (only needed in this deployment, not in actual production).
+
+In https://github.com/mijara/alma-docs, \texttt{cd compose} and execute:
+
+\begin{lstlisting}[language=bash]
+./build.sh
+\end{lstlisting}
+
+This should create an image named \texttt{alma-setup}, check that it exists with:
+
+\begin{lstlisting}
+docker image list | grep alma-setup
+\end{lstlisting}
+
+There should be one line of output created $X$ seconds or minutes ago.
+
+\section{Testing Deployment}
+
+This will guide you through a complete deployment of the system, in a testing environment. These steps will make use of \texttt{docker-compose} utility, in this repository you will find the \texttt{compose} directory with all files you need for this.
+
+\texttt{cd compose}, copy the example file \texttt{docker-compose.yml.example} to \texttt{docker-compose.yml} and fill the missing information marked by \texttt{<}, \texttt{>}. I'll explain each part of this compose file, just for the record:
+
+\subsubsection{ElasticSearch}
+
+\begin{lstlisting}[language=yaml]
+elasticsearch:
+    container_name: "elasticsearch"
+    image: elasticsearch
+    ports:
+        - "9200:9200"
+        - "9300:9300"
+    network_mode: "bridge"
+    volumes:
+        - ./conf/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
+\end{lstlisting}
+
+This definiton will create an ElasticSearch database instance with no persistent data (again, this is just for testing), will bind two ports and use the configuration file listed in \hyperref[sec:appendix-a]{Appendix A}.
+
+\subsubsection{Logstash}
+
+\begin{lstlisting}[language=yaml]
+logstash:
+    container_name: "logstash"
+    image: logstash
+    volumes:
+        - ./conf/logstash.conf:/opt/logstash/logstash.conf
+    command: "-f /opt/logstash/logstash.conf"
+    links:
+        - elasticsearch
+    network_mode: "bridge"
+    ports:
+        - "5000:5000"
+\end{lstlisting}
+
+This definiton will create a Logstash instance, linking to the previous ElasticSearch container. Here we use the port $5000$ to receive logs (\textbf{this is very important}). Finally, use the config file in \hyperref[sec:appendix-b]{Appendix B} to configure it.
+
+\subsubsection{Logspout}
+
+\begin{lstlisting}[language=yaml]
+logspout:
+    container_name: "logspout"
+    image: mijara/alma-logspout-logstash
+    restart: on-failure
+    ports:
+        - "8000:80"
+    volumes:
+        - /var/run/docker.sock:/var/run/docker.sock
+    command: logstash://logstash:5000
+    network_mode: "bridge"
+    links:
+        - logstash
+\end{lstlisting}
+
+This definiton will create a Logspout instance (note the image is \texttt{mijara/alma-logspout-logstash}, this should be changed as soon as \url{https://github.com/gliderlabs/logspout/issues/262} is fixed), we open a port to a http api (mainly for testing), and mount the docker volume, this should be changed when working with a Docker Swarm, add an environment variable on the docker container with:
+
+\begin{lstlisting}
+-e DOCKER\_HOST=tcp://<SWARM\_HOST>:<SWARM\_PORT>
+\end{lstlisting}
+
+Finally connect to logstash as a link and \texttt{logstash://logstash:5000} as route.
+
+\subsubsection{InfluxDB}
+
+\begin{lstlisting}
+influxdb:
+    container_name: "influxdb"
+    image: influxdb
+    ports:
+        - "8083:8083"
+        - "8086:8086"
+    network_mode: "bridge"
+\end{lstlisting}
+
+This definition is quite simple, creates an InfluxDB instance and binds some ports, no extra configuration is needed.
+
+\subsubsection{Alma Setup}
+
+\begin{lstlisting}
+alma-setup:
+    container_name: "alma-setup"
+    image: alma-setup
+    network_mode: "bridge"
+    links:
+        - influxdb
+\end{lstlisting}
+
+This definition is also very simple, executes the alma-setup script to configurate the InfluxDB database (using Rest queries).
+
+\subsubsection{Statspout}
+
+\begin{lstlisting}
+statspout:
+    container_name: "statspout"
+    image: mijara/alma-statspout-alarms
+    network_mode: "bridge"
+    command: "--repository=alarm --influxdb.address=http://influxdb:8086 --influxdb.database=statspout --interval=10 --amqp://<USER>:<PASS>@<HOST>:5672/"
+    volumes:
+        - /var/run/docker.sock:/var/run/docker.sock
+    links:
+        - influxdb
+\end{lstlisting}
+
+This last definition will create an instance of Statspout, note the image \texttt{mijara/alma-statspout-alarms}, which is a valid image that was built right before my internship finalized, feel free to host it yourself. Note that this particular configuration will use the alarm system (detailed in the next chapter), if you're not ready to use it, replace the command for:
+
+\begin{lstlisting}
+command: "--repository=influxdb --influxdb.address=http://influxdb:8086 --influxdb.database=statspout --interval=10"
+\end{lstlisting}
+
+Note that here we tell the system the influxdb host and port, the database to use and the interval (seconds) to retrieve stats, you can change it to any integer larger or equal to 1.
+
+When using the alarm system, you must tell Statspout the RabbitMQ URI (See \url{https://www.rabbitmq.com/uri-spec.html}), for example:
+
+\begin{lstlisting}
+amqp://guest:guest@rabbitmq:5672/
+\end{lstlisting}
+
+Finally, when using a Docker Swarm, add this options to the command:
+
+\begin{lstlisting}
+--mode=http --http.address=<SWARM_HOST>:<SWARM_PORT>
+\end{lstlisting}
+
+And make sure that this machine has access to that host and port!
+
+\subsubsection{Deployment Continuation}
+
+Now we continue with the deployment, change anything you want in the \texttt{docker-compose.yml} file using the information and pointers I just gave you, and the execute:
+
+\begin{lstlisting}
+docker-compose up -d
+\end{lstlisting}
+
+\begin{story}[In case of failure]
+On CentOS 7 it may fail because docker-compose does not exists, to install it, use:
+
+\begin{lstlisting}[language=bash]
+yum install -y python-pip
+pip install docker-compose
+\end{lstlisting}
+
+You may need to upgrade python:
+
+\begin{lstlisting}[language=bash]
+yum upgrade python*
+pip install --upgrade pip
+\end{lstlisting}
+
+Then retry.
+\end{story}
+
+After it finished, execute `docker ps` to check that everything is up and running (logspout, logstash, statspout, elasticsearch, influxdb).
+
+Quick check InfluxDB and ElasticSearch, paste this on a browser:
+
+\begin{lstlisting}[language=bash]
+# InfluxDB
+http://localhost:8086/query?db=statspout&q=select\%20*\%20from\%20cpu_usage\%20where\%20container=\%27influxdb\%27
+
+# ElasticSearch
+http://localhost:9200/offline-*/_search?q=*
+\end{lstlisting}
+
+You should see at least some logs and some stats.
+
+\begin{center}
+\textit{Note that ElasticSearch takes some time to initialize, don't freak out and be patient.}
+\end{center}
+
+If everything seems to work, go ahead and open portainer on a browser: \url{http://localhost:9000/}
+
+Follow the steps, and be sure to configure it to work in a single machine. We're done!

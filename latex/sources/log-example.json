@@ -1,0 +1,23 @@
+{
+  "_index": "offline-2017.02.14",
+  "_type": "logs",
+  "_id": "AVo8-wiPbniGy_agbBPe",
+  "_score": null,
+  "_source": {
+    "app": "datatracker",
+    "image": "docker-registry.asa-test.alma.cl/[...]",
+    "release": "dec2016",
+    "message": "Feb 14, 2017 3:13:32 PM sun.net.www.[...]",
+    "tags": [
+      "docker"
+    ],
+    "@timestamp": "2017-02-14T14:15:59.476Z",
+    "stage": "testing",
+    "stream": "stdout",
+    "@version": "1",
+    "host": "datatracker-testing-dec2016",
+    "name": "/dec2016_datatracker",
+    "id": "9885e438ca5[...]",
+    "timestamp": "2017-02-14T14:16:08.920388287Z"
+  }
+}

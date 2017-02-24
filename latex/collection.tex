@@ -1,0 +1,441 @@
+\chapter{Logs and Stats Collection}
+
+The collection phase takes care of retrieving data from containers and send them to the DBs described above.
+
+As a goal, we will only use tools that can communicate with
+Docker swarm, and that are very easy to setup and use.
+
+\section{Logspout}
+
+This software routes logs from containers to some routing module, using the Docker Logs API
+
+\begin{lstlisting}
+GET /containers/(id or name)/logs
+\end{lstlisting}
+
+This is a pluggable software, and does not support Logstash 
+by default, so we will use Logspout-Logstash module for this.
+
+\subsection{Logspout Logstash support}
+
+A Logspout module that routes logs to Logstash. We use TCP 
+and UDP connections on port 5000. We will need to build a 
+custom version of Logspout to include this module.
+
+To compile a version of Logspout-Logstash go to 
+\texttt{src/logspout-logstash} on the repository and execute:
+
+\begin{lstlisting}
+docker build -t logspout-logstash .
+\end{lstlisting}
+
+\begin{story}[In case of failure]
+On ALMA Ethernet Internet the build process failed, but on
+WiFi it didn't, so the firewall could be the issue. If that's
+not the issue, then check Logspout repository issues, at the
+moment the build is broken since the project uses Go 1.7
+dependencies but compiles with 1.6 ...
+
+\begin{lstlisting}
+https://github.com/gliderlabs/logspout/issues/262
+\end{lstlisting}
+
+We can use this image in the meantime:
+
+\begin{lstlisting}
+https://hub.docker.com/r/mijara/alma-logspout-logstash/
+\end{lstlisting}
+\end{story}
+
+After that, you can use the generated image as 
+\texttt{logspout-logstash} (would be a good idea to upload it
+to a registry).
+
+To run the Logspout-Logstash image, execute:
+
+\begin{lstlisting}
+docker run -d -p 8000:80 --name=logspout -e DOCKER_HOST=tcp://<SWARM_MANAGER>:4000 logspout-logstash logstash://<LOGSTASH_HOST>:5000
+\end{lstlisting}
+
+At this points we can store logs from a Swarm to Elasticsearch, so if you want use those commands (or a Docker Compose file) and start the complete logs system.
+
+\section{Statspout}
+
+The statspout program/framework is used in the architecture to route statistics from Docker container to InfluxDB.
+
+\subsection{Design}
+
+\paragraph{Why not cAdvisor?:} cAdvisor was the first system that we tested for the whole application, but it didn't offered big benefits, and it doesn't do well on Docker Swarm (at least at the moment), requiring that each node runs an instance of cAdvisor.
+
+Since we were already using a system that communicated with Docker API (logspout), the goal was to find another software that did the same thing but for stats. Since there were no Open Source project on that subject, the new goal was to design and implement a system on our own.
+
+\paragraph{Discovery:} Containers are discovered in a when Statspout starts, using the Docker Remote API:
+
+\begin{lstlisting}
+GET /containers/json
+\end{lstlisting}
+
+Which returns a list of all currently active containers (only running ones). After the system is up and running, we ask the Docker Events API to report newly started containers and stopped containers, this way we can update the internal list of containers to monitor dynamically and because of this nature, Statspout doesn't need to be restarted for changes to take effect.
+
+\paragraph{Requesting Stats:} The routing is achieved using the Docker Remote API for stats:
+
+\begin{lstlisting}
+GET /containers/(id or name)/stats
+\end{lstlisting}
+
+Which returns stats for Network and Block IO, CPU, Memory, etc., but in this software we only route CPU, MEM and Network, which are the important to our system, although adding new ones is relatively easy.
+
+\paragraph{Routing:} After stats are collected, the system will route them using the active \textbf{repository} (explained in the next section), using a daemon pipeline that allows us to create a fixed X number of Goroutines (namely Daemons) that will take stats from a container and send them to a repository without having a large amount of open connections at the same time, and as a bonus, Daemons can recover from failures of the repository without coding it explicitly.
+
+\paragraph{Repositories:} A repository is any module that actually routes the stats to some database or system, the system includes by default:
+
+\begin{itemize}
+    \item InfluxDB (as influxdb)
+    \item MongoDB (as mongodb)
+    \item Prometheus (as prometheus)
+    \item RestAPI (as rest)
+    \item Stdout (as stdout)
+\end{itemize}
+
+In ALMA we use the InfluxDB repo, but with some customizations. New repositories can be created, using the system as a framework.
+
+\subsection{How to use}
+
+Depending on what we need from Statspout, the system can be used as a standalone application or as a framework.
+
+\textit{Note: the following guides will be using the pre-release v0.1 on Statspout Repository \citep{statspout-github-0.1}}
+
+\textit{Some Golang knowledge will be assumed. \citep{golang-website}}
+
+\subsubsection{As a Standalone Application}
+
+The recommended way to use Statspout is using Docker, simply open a terminal and run:
+
+\begin{lstlisting}
+docker run -v /var/run/docker.sock:/var/run/docker.sock mijara/statspout
+\end{lstlisting}
+
+This will run Statspout in a simple console streaming interface, by default it is using the stdout repository, socket mode (that's why we mount the docker socket as a volume) and a refresh interval of 5 seconds.
+
+Quit with \texttt{Ctrl-C}.
+
+Example of output:
+
+\begin{lstlisting}
+\$ docker run -v /var/run/docker.sock:/var/run/docker.sock mijara/statspout
+INFO: 2017/02/21 17:05:47.838594 10 daemons started.
+INFO: 2017/02/21 17:05:47.839080 10 daemons clients created.
+INFO: 2017/02/21 17:05:47.839134 Docker client created.
+INFO: 2017/02/21 17:05:47.860686 Statspout started: 10 daemons, 5 interval, socket mode, stdout repo
+[sleepy_kirch] {21 Feb 17 17:05:49 UTC} CPU: 0.00%, MEM: 0.07% [1388544 B] Tx/Rx: 258/418
+[...]
+\end{lstlisting}
+
+Statspout is highly configurable, we've made a lot of console arguments for your needs, and are separated in 3 categories:
+
+\begin{description}
+  \item[top level]
+      options that configure the higher level system options.
+      
+  \item[mode]
+      options that configure the connection mode.
+      
+  \item[repository]
+      options that configure each repository.
+\end{description}
+
+\begin{itemize}
+    \item
+        Top Level Opts:
+        \begin{itemize}
+            \item \texttt{mode}: mode to create the client: socket, http. Default socket
+            
+            \item \texttt{interval}: seconds between each stat, in seconds. Minimum is 1 second. Default 5.
+            
+            \item \texttt{daemons}: number of daemons to handle requests. Default 10.
+            
+            \item \texttt{repository}: which repository to use (they're listed in the Supported Repositories list) each repository will bound different options. Default stdout.
+
+            \item \texttt{ignore}: repository names to ignore, separated by comma. By default ignores nothing. Example: --ignore=nginx,kibana
+        \end{itemize}
+    
+    \item 
+        Mode Options
+        
+        \begin{itemize}
+            \item \texttt{socket.path}: unix socket to connect to Docker. Default: /var/run/docker.sock
+            
+            \item \texttt{http.address}: Docker API address. Default: localhost:4243
+        \end{itemize}
+    
+    \item
+        Repository Options, depending of what was selected on the \texttt{repository} top level option.
+        
+        \begin{itemize}
+            \item \texttt{mongo.address}: Address of the MongoDB Endpoint. Default: localhost:27017
+            
+            \item \texttt{mongo.database}: Database for the collection. Default: statspout
+            
+            \item \texttt{mongo.collection}: Collection for the stats. Default: stats
+            
+            \item \texttt{prometheus.address}: Address on which the Prometheus HTTP Server will publish metrics. Default: :8080
+            
+            \item \texttt{influxdb.address}: Address of the InfluxDB Endpoint. Default: http://localhost:8086
+            
+            \item \texttt{influxdb.database}: Database to store data. Default: statspout
+            
+            \item \texttt{rest.address}: Address on which the Rest HTTP Server will publish data. Default: :8080
+            
+            \item \texttt{rest.path}: Path on which data is served. Default: /stats
+        \end{itemize}
+\end{itemize}
+
+To use any of those options just append them to the docker run command, i.e:
+
+\begin{lstlisting}
+docker run -v /var/run/docker.sock:/var/run/docker.sock mijara/statspout --repository=influxdb --influxdb.address=influxdb:8086 --interval=10 --daemons=20
+\end{lstlisting}
+
+\subsubsection{As a framework}
+
+The software is coded in Go, here we will assume that the reader already knows this language.
+
+\paragraph{Environment}
+
+First setup your development environment for Statspout, assuming that you already have a proper path for your project and the recommended Go project layout, execute:
+
+\begin{lstlisting}
+go get github.com/mijara/statspout
+\end{lstlisting}
+
+To install the framework libraries, dependencies should be installed automatically, but if not, install them one by one (how? easiest way: just run the project cmd/main.go file and check the import errors, the `go get` each one).
+
+For the next steps you should have a Docker instance running and at least one container (does not matter which one).
+
+Test that everything is working properly, cd into the statspout's cmd directory and execute:
+
+\begin{lstlisting}
+go run main.go
+\end{lstlisting}
+
+This will run the system with the default configurations, if you see stats every X seconds, then everything is working properly.
+
+\begin{story}[In case of failure]
+Check your GOPATH and dependencies or file an issue at: \url{https://github.com/mijara/statspout/issues}
+\end{story}
+
+Create a separate directory for your module, something like:
+
+\begin{lstlisting}
+your-path/
+    pkg/
+    bin/
+    src/
+        ...
+        github.com/
+            mijara/
+                statspout/
+            your-github-username/
+                your-project/
+                    customrepo/         # structs and utils for your module.
+                        customrepo.go   # contains the repository impl.
+                    main.go             # init the framework and configures it.
+\end{lstlisting}
+
+\paragraph{Main}
+
+The first step is to configure the main file for your new project:
+
+\begin{lstlisting}[language=Golang]
+package main
+
+import (
+	"github.com/mijara/statspout"
+	"github.com/mijara/statspout/common"
+	"github.com/mijara/statspout/opts"
+)
+
+func main() {
+	cfg := opts.NewConfig()
+
+	cfg.AddRepository(&common.Stdout{}, nil)
+
+	cfg.AddRepository(&common.Rest{}, common.CreateRestOpts())
+
+	cfg.AddRepository(&common.Prometheus{}, common.CreatePrometheusOpts())
+	cfg.AddRepository(&common.InfluxDB{}, common.CreateInfluxDBOpts())
+	cfg.AddRepository(&common.Mongo{}, common.CreateMongoOpts())
+
+	statspout.Start(cfg)
+}
+\end{lstlisting}
+
+This is an example of the actual main file of the software, which loads every common repository, and listens to cmd arguments to chose which one to use.
+
+Every repository that you want to use must be added to the configuration, for example:
+
+\begin{lstlisting}[language=Golang]
+cfg.AddRepository(&common.Mongo{}, common.CreateMongoOpts())
+\end{lstlisting}
+
+The first argument is a struct that represents an unloaded version of the repository (an empty structure instance), the second ones is used to parse custom command line arguments for the repository.
+
+\paragraph{Create a simple repository}
+
+Here we will demonstrate how to create a Repository for an imaginary database called IDB (replace customrepo for idb in the above file tree). Assume that there's a library called \texttt{idbcli} that does all the hard work your us.
+
+In your project directory open the \texttt{idb/idb.go} file and paste:
+
+\begin{lstlisting}[language=Golang]
+package idb
+
+import (
+    "flag"
+
+    "github.com/mijara/statspout/repo"
+    "github.com/mijara/statspout/stats"
+    "github.com/mijara/idbcli"
+)
+
+type IDB struct {
+}
+
+func NewIDB() (*IDB, error) {
+	// TODO: see below.
+}
+
+func (*IDB) Name() string {
+	return "idb"
+}
+
+func (*IDB) Create(v interface{}) (repo.Interface, error) {
+	return NewIDB()
+}
+
+func (*IDB) Clear(name string) {
+    // see the Rest repository to check what is this used for.
+}
+
+func (repo *IDB) Push(s *stats.Stats) error {
+    // TODO: see below.
+	return nil
+}
+
+func (repo *IDB) Close() {
+    // TODO: see below.
+}
+\end{lstlisting}
+
+You can check what each method does in the official documentation at \url{godoc.org}:
+
+\begin{center}
+\url{https://godoc.org/github.com/mijara/statspout/repo}
+\end{center}
+
+For this repository, we would need a client connection:
+
+\begin{lstlisting}[language=Golang]
+type IDB struct {
+    cli *idbcli.Client
+}
+\end{lstlisting}
+
+The client receives some arguments, and since we want our repository to be configurable with command line arguments, we will use the Opts feature, add this:
+
+\begin{lstlisting}[language=Golang]
+struct IDBOpts {
+    Address string
+}
+
+func CreateIDBOpts() *IDBOpts {
+    o := &IDBOpts{}
+
+	flag.StringVar(&o.Address,
+		"idb.address",                 // property name.
+		"localhost:4242/statspout",    // default value.
+		"Address of the IDB Endpoint") // help text.
+
+	return o
+}
+\end{lstlisting}
+
+Then we should initialize the client, for this we will use the Create and NewIDB functions to receive the options and actually create the repository:
+
+\begin{lstlisting}[language=Golang]
+func (*IDB) Create(v interface{}) (repo.Interface, error) {
+    opts := v.(*IDBOpts)
+	return NewIDB(opts.Address)
+}
+\end{lstlisting}
+
+\begin{lstlisting}[language=Golang]
+func NewIDB(address string) (*IDB, error) {
+    cli, err := idbcli.NewClient(address)
+    if err != nil {
+        return nil, err
+    }
+
+	return &IDB{
+        cli: cli,
+    }, nil
+}
+\end{lstlisting}
+
+IDB needs to be closed when exiting, so:
+
+\begin{lstlisting}[language=Golang]
+func (repo *IDB) Close() {
+    repo.cli.Close()
+}
+\end{lstlisting}
+
+To actually push the stats, we will use:
+
+\begin{lstlisting}[language=Golang]
+func (repo *IDB) Push(s *stats.Stats) error {
+    data := make(map[string]float64)
+
+    data["cpu_usage"] = float64(s.CpuPercent)
+    data["mem_usage"] = float64(s.MemoryUsage)
+    data["tx_bytes"] = float64(s.TxBytesTotal)
+    data["rx_bytes"] = float64(s.RxBytesTotal)
+
+    // `s` also contains container Labels for extra metadata, example:
+    data["state"] = s.Labels["state"]
+
+    err := repo.cli.Send(s.Name, s.Timestamp, data)
+
+    // here you could check the error details.
+
+    // if there's an error, the core will catch it and log it without closing
+    // the whole system. It will also catch panics from this method and recover
+    // from them.
+	return err
+}
+\end{lstlisting}
+
+\textit{Note:} you can use the statspout log package to properly display information of the Push process. Errors will be automatically logged, but other DEBUG information could be useful to log as well.
+
+See \url{https://godoc.org/github.com/mijara/statspout/log} for more information.
+
+With this done and working, go back to the \texttt{main.go} file and add it:
+
+\begin{lstlisting}[language=Golang]
+cfg.AddRepository(&idb.IDB{}, idb.CreateIDBOpts())
+\end{lstlisting}
+
+\textit{Note: Remember to import the necessary modules.}
+
+Execute your main file with:
+
+\begin{lstlisting}
+go run main.go --repository=idb --idb.address=localhost:4242/mystats
+\end{lstlisting}
+
+And everything should work fine, if not, please contact:
+
+\begin{center}
+\texttt{<marcelo.jara.13@sansano.usm.cl> (Marcelo Jara Almeyda)}
+\end{center}
+
+Do not file an issue about this tutorial since this is a guide only for ALMA usage.

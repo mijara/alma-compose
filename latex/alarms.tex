@@ -1,0 +1,89 @@
+\chapter{Alarm Notifications}
+
+A good use of the statistics inspection is being able to send alerts if some container is using more than an expected limit of CPU or memory. For that scenario, we developed a Statspout module that detects values exceeding maximums and activates a notification mechanism.
+
+\section{How to specify the maximums}
+
+At the moment, there's support for CPU and Memory maximums, each one is specified for each container (or can be ignored) using Docker Container Labels.
+
+\begin{itemize}
+    \item CPU: \texttt{cl.alma.max-cpu}
+    \item MEM: \texttt{cl.alma.max-mem}
+\end{itemize}
+
+Each one receives an integer value larger than 0 that the module will use to raise alerts.
+
+Example:
+
+\begin{lstlisting}[language=bash]
+docker run -p 80:80 -l cl.alma.max-cpu=50 nginx
+\end{lstlisting}
+
+In this case, the module will alert whenever the usage of CPU is exceeding 50\%, and there will be no restriction for memory (a value of zero is also interpreted as no restriction).
+
+\textbf{Can we set the maximums after starting the container?} \\
+No, Statspout is not capable of detecting such changes at the moment.
+
+\section{An Alarm Example}
+
+Each alarm gets logged into Statspout by default (can be disabled), like this:
+
+\begin{lstlisting}
+Max 5.00\% CPU exceeded: [nginx] {13 Feb 17 18:09:27 UTC} CPU: 17.358405\%, MEM: 0.097502\% [2043904 B] Tx/Rx: 9386317/2047081
+\end{lstlisting}
+
+This example shows every bit of information at the time the detection was made, in this strict format:
+
+\begin{lstlisting}
+Max [MAX_CPU] CPU exceeded: [CONTAINER_NAME] [UTC Timestamp] CPU: [CURRENT_CPU], MEM: [CURRENT_MEM] [MEM_IN_BYTES] Tx/Rx: [TX_BYTES]/[RX_BYTES]
+\end{lstlisting}
+
+Using the Logspout system, this will be stored into ElasticSearch, and with a corresponding Dashboard, could become a very useful piece of data.
+
+\section{Notifiers}
+
+The AlarmDetector repository supports multiple notifiers, at the moment there're
+two: standard output and RabbitMQ, the former is used as a backup and the latter
+is used to send logs to further analysis (and maybe Jenkins).
+
+Options for these two are:
+
+\begin{lstlisting}
+--alarm.cycles int
+    Cycles of cooldown after a the detection stopped. (default 10)
+--alarm.rabbitmq
+    Enable or disable the RabbitMQ notifier. (default false)
+--alarm.rabbitmq.queue string
+    Queue for alarms raised. (default "alarms")
+--alarm.rabbitmq.uri string
+    Broker URI. See https://www.rabbitmq.com/uri-spec.html (default
+        "amqp://localhost:5672/")
+--alarm.stdout
+    Enable or disable the Stdout notifier. (default true)
+\end{lstlisting}
+
+See the Statspout \textbf{How to use} section for further information.
+
+\subsection{RabbitMQ}
+
+Here we use a specific format for RabbitMQ that makes it easy to use Jenkins to send notifications, example of the JSON format:
+
+\begin{lstlisting}
+{
+    "@timestamp": "UTC TIMESTAMP",
+    "path": "OFFLINE/DOCKER/APP/RESOURCE",
+    "priority": "WARNING",
+    "body": {
+        "message": "a test alarm message."
+    }
+}
+\end{lstlisting}
+
+\section{Excluding Duplicates}
+
+To ignore duplicates of the same alarm the system uses two mechanisms:
+
+\begin{itemize}
+    \item Ignore every peak that follows an initial alarm raise, until it is fixed.
+    \item After a peak, we will rest for a number of cycles, ignoring every value (see \texttt{alarm.cycles} option). This is useful in cases where a container has lots of peaks constantly increasing and decreasing.
+\end{itemize}

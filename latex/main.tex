@@ -1,0 +1,131 @@
+\documentclass{report}
+\usepackage[utf8]{inputenc}
+
+\usepackage{natbib}
+\usepackage{graphicx}
+\usepackage{listings}
+\usepackage{listings-golang}
+\usepackage{url}
+\usepackage[margin=1in]{geometry}
+\usepackage{color}
+\usepackage{hyperref}
+\usepackage[many]{tcolorbox}
+\usepackage{marginnote}
+\usepackage{kantlipsum}
+
+\tcbuselibrary{skins,breakable}
+\newtcolorbox{story}[1][]{
+    width=\textwidth,
+    colback=black!20,
+    colframe=black!75!black,
+    colbacktitle=gray!85!black,
+    fonttitle=\bfseries,
+    left=0ex,
+    right=0ex,
+    top=0pt,
+    arc=0pt,
+    outer arc=0pt,
+    leftrule=0pt,
+    rightrule=0pt,
+    toprule=0pt,
+    bottomrule=0pt,
+    breakable,
+    enhanced jigsaw,
+    title= #1}
+
+\lstdefinelanguage{yaml}{
+  keywords={true,false,null,y,n},
+  keywordstyle=\color{darkgray}\bfseries,
+  ndkeywords={},
+  ndkeywordstyle=\color{black}\bfseries,
+  identifierstyle=\color{black},
+  sensitive=false,
+  %moredelim=[l]{}{:},
+  comment=[l]{\#},
+  morecomment=[s]{/*}{*/},
+  commentstyle=\color{purple}\ttfamily,
+  stringstyle=\color{blue}\ttfamily,
+  %morestring=[l]{-}{},
+  morestring=[b]',
+  morestring=[b]"
+}
+
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+ 
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{backcolour},   
+    commentstyle=\color{codepurple},
+    keywordstyle=\color{brown},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{black},
+    basicstyle=\footnotesize,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=left,                    
+    numbersep=5pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2,
+    frame=single
+}
+ 
+\lstset{style=mystyle}
+
+\setlength{\parskip}{1em}
+
+\title{ALMA Internship Documentation}
+\author{Marcelo Jara}
+\date{February 2017}
+
+\begin{document}
+
+\maketitle
+
+\chapter{Overview}
+
+This documentation will include design decisions and 
+guides to make a full build and deployment of the system
+developed at ALMA in Jan-Feb of 2017 
+as part of my internship.
+
+The initial problem involved Docker Container logs and stats 
+(or metrics, I use them both interchangeably), 
+we needed to route those logs and stats
+from said containers to a database backend 
+that could store them in order to enable us to
+browse through this data and troubleshoot errors as fast as possible.
+
+At the time of the internship the offline part of the ALMA software
+had recently moved to Docker and they were using Portainer as Docker Manager, along with Docker Swarm for distribution. 
+We wanted to integrate a browsing view (logs and stats) to Portainer, 
+(in the dedicated section the approach will be explained)
+that could display data gathered from the Swarm, 
+and making it as plug-and-play as possible.
+
+This document will take a bottom-up approach, 
+detailing first the DB, then the collection systems and 
+finally the user view.
+
+\textit{Note: this guide will refer to files that are stored 
+in \url{https://github.com/mijara/alma-docs} and requires 
+that you have a working Docker instance}.
+
+\tableofcontents
+
+
+\input{databases.tex}
+\input{collection.tex}
+\input{portainer.tex}
+\input{deployment.tex}
+\input{alarms.tex}
+\input{appendix.tex}
+
+\bibliographystyle{plain}
+\bibliography{references}
+\end{document}
