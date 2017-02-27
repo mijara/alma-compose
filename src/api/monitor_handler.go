@@ -171,7 +171,7 @@ func (h *MonitorHandler) queryStats(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// create the query string.
-	query, err := createStatsQuery("http://0.0.0.0:8086/query", db, name, timeRange,
+	query, err := createStatsQuery(h.opts.Influx.endpoint, db, name, timeRange,
 		30, "cpu_usage", "mem_usage", "rx_bytes", "tx_bytes")
 	if err != nil {
 		Error(w, err, http.StatusBadRequest, h.logger)
