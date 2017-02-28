@@ -1,9 +1,9 @@
 \chapter{Logs and Stats Collection}
 
-The collection phase takes care of retrieving data from containers and send them to the DBs described above.
+The collection phase takes care of retrieving data from containers and send them to the DBs described in the previous section.
 
 As a goal, we will only use tools that can communicate with
-Docker swarm, and that are very easy to setup and use.
+through the Docker API, and that are very easy to setup and use.
 
 \section{Logspout}
 
@@ -18,9 +18,7 @@ by default, so we will use Logspout-Logstash module for this.
 
 \subsection{Logspout Logstash support}
 
-A Logspout module that routes logs to Logstash. We use TCP 
-and UDP connections on port 5000. We will need to build a 
-custom version of Logspout to include this module.
+This is a Logspout module that routes logs to Logstash, uses TCP  and UDP connections on port 5000. We will need to build a custom version of Logspout to include this module.
 
 To compile a version of Logspout-Logstash go to 
 \texttt{src/logspout-logstash} on the repository and execute:
@@ -31,10 +29,7 @@ docker build -t logspout-logstash .
 
 \begin{story}[In case of failure]
 On ALMA Ethernet Internet the build process failed, but on
-WiFi it didn't, so the firewall could be the issue. If that's
-not the issue, then check Logspout repository issues, at the
-moment the build is broken since the project uses Go 1.7
-dependencies but compiles with 1.6 ...
+WiFi it didn't, so the firewall could be the issue. If that's not the issue, then check Logspout repository issues, at the moment the build is broken since the project uses Go 1.7 dependencies but compiles with 1.6
 
 \begin{lstlisting}
 https://github.com/gliderlabs/logspout/issues/262
@@ -48,8 +43,7 @@ https://hub.docker.com/r/mijara/alma-logspout-logstash/
 \end{story}
 
 After that, you can use the generated image as 
-\texttt{logspout-logstash} (would be a good idea to upload it
-to a registry).
+\texttt{logspout-logstash} (would be a good idea to upload it to a registry).
 
 To run the Logspout-Logstash image, execute:
 
@@ -65,27 +59,31 @@ The statspout program/framework is used in the architecture to route statistics 
 
 \subsection{Design}
 
-\paragraph{Why not cAdvisor?:} cAdvisor was the first system that we tested for the whole application, but it didn't offered big benefits, and it doesn't do well on Docker Swarm (at least at the moment), requiring that each node runs an instance of cAdvisor.
+\paragraph{Why not cAdvisor?:} cAdvisor was the first system that we tested for the application, but it didn't offered big benefits, and it doesn't do well on Docker Swarm (at least at the moment), requiring that each node runs an instance of cAdvisor.
 
-Since we were already using a system that communicated with Docker API (logspout), the goal was to find another software that did the same thing but for stats. Since there were no Open Source project on that subject, the new goal was to design and implement a system on our own.
+Since we were already using a system that communicated with Docker API (logspout), we wanted to find another software that did the same thing but for stats. Since there were no Open Source project on that subject, the new goal was to design and implement a system on our own.
 
-\paragraph{Discovery:} Containers are discovered in a when Statspout starts, using the Docker Remote API:
+\begin{center}
+\textbf{How does it work?}
+\end{center}
+
+\paragraph{Discovery:} Containers are discovered when Statspout starts, using the Docker Remote API:
 
 \begin{lstlisting}
 GET /containers/json
 \end{lstlisting}
 
-Which returns a list of all currently active containers (only running ones). After the system is up and running, we ask the Docker Events API to report newly started containers and stopped containers, this way we can update the internal list of containers to monitor dynamically and because of this nature, Statspout doesn't need to be restarted for changes to take effect.
+Which returns a list of all currently active containers (only running ones). After the system is up and running, we ask the Docker Events API to report newly started containers and stopped containers, this way we can update the internal list of containers. Because of this nature, Statspout doesn't need to be restarted for changes to take effect.
 
-\paragraph{Requesting Stats:} The routing is achieved using the Docker Remote API for stats:
+\paragraph{Requesting Stats:} The request is achieved using the Docker Remote API for stats:
 
 \begin{lstlisting}
 GET /containers/(id or name)/stats
 \end{lstlisting}
 
-Which returns stats for Network and Block IO, CPU, Memory, etc., but in this software we only route CPU, MEM and Network, which are the important to our system, although adding new ones is relatively easy.
+Which returns stats for Network, CPU, Memory, etc.. For this system, we are want CPU usage percentage, memory usage percentage and incremental use of Network.
 
-\paragraph{Routing:} After stats are collected, the system will route them using the active \textbf{repository} (explained in the next section), using a daemon pipeline that allows us to create a fixed X number of Goroutines (namely Daemons) that will take stats from a container and send them to a repository without having a large amount of open connections at the same time, and as a bonus, Daemons can recover from failures of the repository without coding it explicitly.
+\paragraph{Routing:} After stats are collected, the system will route them using the active \textbf{repository} (explained in the next section), using a daemon pipeline that allows us to create a fixed $N$ number of Goroutines (named \textbf{daemons}) that will take stats from a container and send them to a repository. This pipeline avoids having a large amount of open connections at the same time, and as a bonus, daemons can recover from failures of the repository without coding it explicitly.
 
 \paragraph{Repositories:} A repository is any module that actually routes the stats to some database or system, the system includes by default:
 
@@ -98,6 +96,13 @@ Which returns stats for Network and Block IO, CPU, Memory, etc., but in this sof
 \end{itemize}
 
 In ALMA we use the InfluxDB repo, but with some customizations. New repositories can be created, using the system as a framework.
+
+\begin{figure}
+    \centering
+    \includegraphics[scale=0.5]{img/statspout.png}
+    \caption{Statspout Data Flow using InfluxDB}
+    \label{fig:statspout-flow}
+\end{figure}
 
 \subsection{How to use}
 
@@ -115,9 +120,7 @@ The recommended way to use Statspout is using Docker, simply open a terminal and
 docker run -v /var/run/docker.sock:/var/run/docker.sock mijara/statspout
 \end{lstlisting}
 
-This will run Statspout in a simple console streaming interface, by default it is using the stdout repository, socket mode (that's why we mount the docker socket as a volume) and a refresh interval of 5 seconds.
-
-Quit with \texttt{Ctrl-C}.
+This will run Statspout in a simple console streaming interface, by default it is using the \texttt{stdout} repository, \texttt{socket} mode (that's why we mount the docker socket as a volume) and a refresh interval of 5 seconds.
 
 Example of output:
 
@@ -130,6 +133,8 @@ INFO: 2017/02/21 17:05:47.860686 Statspout started: 10 daemons, 5 interval, sock
 [sleepy_kirch] {21 Feb 17 17:05:49 UTC} CPU: 0.00%, MEM: 0.07% [1388544 B] Tx/Rx: 258/418
 [...]
 \end{lstlisting}
+
+Quit with \texttt{Ctrl-C}.
 
 Statspout is highly configurable, we've made a lot of console arguments for your needs, and are separated in 3 categories:
 
@@ -208,7 +213,7 @@ First setup your development environment for Statspout, assuming that you alread
 go get github.com/mijara/statspout
 \end{lstlisting}
 
-To install the framework libraries, dependencies should be installed automatically, but if not, install them one by one (how? easiest way: just run the project cmd/main.go file and check the import errors, the `go get` each one).
+To install the framework libraries, dependencies should be installed automatically, but if not, install them one by one (how? easiest way: just run the project's cmd/main.go file and check the import errors, then `go get` each one).
 
 For the next steps you should have a Docker instance running and at least one container (does not matter which one).
 
@@ -278,11 +283,11 @@ Every repository that you want to use must be added to the configuration, for ex
 cfg.AddRepository(&common.Mongo{}, common.CreateMongoOpts())
 \end{lstlisting}
 
-The first argument is a struct that represents an unloaded version of the repository (an empty structure instance), the second ones is used to parse custom command line arguments for the repository.
+The first argument is a struct that represents an unloaded version of the repository (an empty structure instance), the second one is used to parse custom command line arguments for the repository.
 
 \paragraph{Create a simple repository}
 
-Here we will demonstrate how to create a Repository for an imaginary database called IDB (replace customrepo for idb in the above file tree). Assume that there's a library called \texttt{idbcli} that does all the hard work your us.
+Here we will demonstrate how to create a Repository for an imaginary database called IDB (replace customrepo for idb in the previous file tree). Assume that there's a library called \texttt{idbcli} that does all the hard work for us.
 
 In your project directory open the \texttt{idb/idb.go} file and paste:
 
@@ -350,12 +355,12 @@ struct IDBOpts {
 func CreateIDBOpts() *IDBOpts {
     o := &IDBOpts{}
 
-	flag.StringVar(&o.Address,
-		"idb.address",                 // property name.
-		"localhost:4242/statspout",    // default value.
-		"Address of the IDB Endpoint") // help text.
+    flag.StringVar(&o.Address,
+        "idb.address",                 // property name.
+        "localhost:4242/statspout",    // default value.
+        "Address of the IDB Endpoint") // help text.
 
-	return o
+    return o
 }
 \end{lstlisting}
 
@@ -363,8 +368,8 @@ Then we should initialize the client, for this we will use the Create and NewIDB
 
 \begin{lstlisting}[language=Golang]
 func (*IDB) Create(v interface{}) (repo.Interface, error) {
-    opts := v.(*IDBOpts)
-	return NewIDB(opts.Address)
+    opts := v.(*IDBOpts)        // cast 'v' to IDBOpts struct.
+    return NewIDB(opts.Address) // creates the repo.
 }
 \end{lstlisting}
 
@@ -375,7 +380,7 @@ func NewIDB(address string) (*IDB, error) {
         return nil, err
     }
 
-	return &IDB{
+    return &IDB{
         cli: cli,
     }, nil
 }
@@ -410,7 +415,7 @@ func (repo *IDB) Push(s *stats.Stats) error {
     // if there's an error, the core will catch it and log it without closing
     // the whole system. It will also catch panics from this method and recover
     // from them.
-	return err
+    return err
 }
 \end{lstlisting}
 
@@ -418,7 +423,7 @@ func (repo *IDB) Push(s *stats.Stats) error {
 
 See \url{https://godoc.org/github.com/mijara/statspout/log} for more information.
 
-With this done and working, go back to the \texttt{main.go} file and add it:
+With this done and working, go back to the \texttt{main.go} file and add:
 
 \begin{lstlisting}[language=Golang]
 cfg.AddRepository(&idb.IDB{}, idb.CreateIDBOpts())
@@ -438,4 +443,4 @@ And everything should work fine, if not, please contact:
 \texttt{<marcelo.jara.13@sansano.usm.cl> (Marcelo Jara Almeyda)}
 \end{center}
 
-Do not file an issue about this tutorial since this is a guide only for ALMA usage.
+Do not file an issue about this tutorial since this only for ALMA usage.

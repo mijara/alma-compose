@@ -81,7 +81,7 @@
 
 \title{ALMA Internship Documentation}
 \author{Marcelo Jara}
-\date{February 2017}
+\date{March 2017}
 
 \begin{document}
 
@@ -101,23 +101,37 @@ from said containers to a database backend
 that could store them in order to enable us to
 browse through this data and troubleshoot errors as fast as possible.
 
-At the time of the internship the offline part of the ALMA software
-had recently moved to Docker and they were using Portainer as Docker Manager, along with Docker Swarm for distribution. 
-We wanted to integrate a browsing view (logs and stats) to Portainer, 
-(in the dedicated section the approach will be explained)
-that could display data gathered from the Swarm, 
-and making it as plug-and-play as possible.
+At the time of the internship the offline section of the ALMA software group had recently moved to Docker and they are using Portainer as Docker Manager UI, along with Docker Swarm for cluster managment. We wanted to integrate a browsing view (logs and stats) to Portainer, (in the Portainer section the approach will be explained) that could display data gathered from the Swarm, and making it as plug-and-play as possible.
 
 This document will take a bottom-up approach, 
 detailing first the DB, then the collection systems and 
-finally the user view.
+finally the user view (or Portainer Mod).
 
-\textit{Note: this guide will refer to files that are stored 
-in \url{https://github.com/mijara/alma-docs} and requires 
-that you have a working Docker instance}.
+\textit{Note: this guide will refer to files that are available in \url{https://github.com/mijara/alma-docs} and requires that you have a working Docker instance}.
 
 \tableofcontents
 
+\chapter{The System}
+
+This system is composed of several components, each one is meant to be modular and swappable (not out of the box in some cases, but workable). There're three layers of the system, almost following the MVC architecture:
+
+\begin{itemize}
+    \item 
+        \textbf{View}: displays information gathered from the databases, allowing to filter dates and pages.
+    \item 
+        \textbf{Collectors}: communicates with the Docker Host or Swarm in order to retrieve information and then route it to the corresponding database. It is also allowed to inspect data to raise timely alarms.
+    \item 
+        \textbf{Databases}: stores information from collectors.
+\end{itemize}
+
+A complete component data flow can be seen on the figure \ref{fig:data-flow}: data starts at the Docker Swarm, gets collected by Statspout and Logspout and then routed to the databases (in case of logs, Logstash will add metadata and format the log document) and finally Portainer will retrieve that data for display.
+
+\begin{figure}[h]
+\caption{System data flow}
+\label{fig:data-flow}
+\centering
+\includegraphics[width=12cm]{img/full.png}
+\end{figure}
 
 \input{databases.tex}
 \input{collection.tex}

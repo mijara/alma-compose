@@ -1,28 +1,25 @@
 \chapter{Databases}
 
-First we need a place to store out data, 
-the following services were selected due to their community support as well as it's well known speed and reliability.
+First we need a place to store our data, 
+the following services were selected due to their community support as well as its well known speed and reliability.
 
 \section{Logs}
 
 \textbf{ElasticSearch} \citep{elasticsearch} is a schemaless JSON document database, that features fast access (using caches) and distributed storage and will keep stored our logs.
 
 Along with ElasticSearch database we need Logstash 
-in order to parse and format logs to be store,
-and will allow us to add new fields and use regular expressions to parse additional encoded data from containers, i.e., each container host is formatted as \texttt{APPNAME-STAGE-RELEASE}, for example: \texttt{harvester-testing-dec2016}, each part of that format is important to keep isolated, and be able to make smarter and easier queries.
+in order to parse and format logs, and will allow us to add new fields and use regular expressions to parse additional encoded data from containers, i.e., each container host is formatted as \texttt{APPNAME-STAGE-RELEASE}, for example: \texttt{harvester-testing-dec2016}, each part of that format is important to keep isolated in order to be able to make smarter and easier queries.
 
-As an additional feature, we will be able to use Kibana for log browsing and dashboard manager (this guide will not cover this, but keep in mind that it is possible).
-
-Example of a log document after we stored it:
+As an additional feature, we will be able to use Kibana for log browsing and dashboard manager (this guide will not cover this, but keep in mind that it is possible). Example of a log document stored in ElasticSearch:
 \lstinputlisting{sources/log-example.json}
 
-You can run an instance of ElasticSearch using Docker (for tests) with the following command and the configuration file that can be found on Apendix A:
+You can run an instance of ElasticSearch using Docker (for tests) with the following command and the configuration file that can be found on \hyperref[sec:appendix-a]{Appendix A}:
 
 \begin{lstlisting}
 docker run -d -p 9200:9200 -p 9300:9300 -v elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml --name=elasticsearch elasticsearch
 \end{lstlisting}
 
-And Logstash can be started with the following command and the configuration file found on Appendix B:
+Logstash can be started with the following command and the configuration file found on \hyperref[sec:appendix-b]{Appendix B}:
 \begin{lstlisting}
 docker run -d -v logstash.conf:/opt/logstash/logstash.conf --name=logstash --link=elasticsearch logstash -f /opt/logstash/logstash.conf
 \end{lstlisting}
@@ -31,10 +28,17 @@ docker run -d -v logstash.conf:/opt/logstash/logstash.conf --name=logstash --lin
 
 For stats, we will use \textbf{InfluxDB}. It is a time-series database that aims to store this kind of metrics, allowing us to make intelligent queries.
 
+Some important features for us are:
+
+\begin{itemize}
+    \item Simple, high performing write and query HTTP(S) APIs.
+    \item Written entirely in Go. It compiles into a single binary with no external dependencies.
+    \item Expressive SQL-like query language tailored to easily query aggregated data.
+    \item Retention policies efficiently auto-expire stale data.
+\end{itemize}
+
 To run the service use:
 
 \begin{lstlisting}
 docker run -d -p 8083:8083 -p 8086:8086 influxdb
 \end{lstlisting}
-
-The \textbf{Statspout} section will explain the schema used to store metrics.
